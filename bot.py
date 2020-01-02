@@ -4,6 +4,8 @@ from disc_info import TOKEN, GUILD
 import discord
 from random import randint
 
+print(TOKEN)
+
 
 class DDClient(discord.Client):
 
