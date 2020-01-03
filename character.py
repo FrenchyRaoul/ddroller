@@ -7,6 +7,7 @@ ATTR = {"strength", "dexterity", "intelligence", "wisdom", "charisma", "constitu
 SKILL = {"athletics": "strength",
          "acrobatics": "dexterity",
          "sleight_of_hand": "dexterity",
+         "stealth": "dexterity",
          "arcana": "intelligence",
          "history": "intelligence",
          "investigation": "intelligence",
@@ -44,7 +45,7 @@ class Character():
     charisma: int
     proficiencies: Set[str] = field(default_factory=set)
     skill_modifiers: Dict[str, Tuple[str, int]] = field(default_factory=dict)
-    classes: Set[Class] = field(default_factory=set)
+    classes: Dict[str, Class] = field(default_factory=dict)
         
     def __eq__(self, other):
         if isinstance(other, Character):
@@ -53,25 +54,29 @@ class Character():
         
     @property
     def level(self):
-        total_level = sum(cls.level for cls in self.classes)
+        total_level = sum(cls.level for classname, cls in self.classes.items())
         return total_level or 1
     
     @property
     def proficiency(self):
         return (self.level + 3) // 4 + 1
     
-    def add_proficiency(self, skill: str):
-        skill = skill.lower()
-        if skill not in SKILL:
-            raise ValueError('invalid skillname')
+    def add_proficiency(self, skill_or_attr: str):
+        skill_or_attr = skill_or_attr.lower()
+        if skill not in SKILL and skill not in ATTR:
+            raise ValueError('invalid skill name')
         self.proficiencies.add(skill)
         
     def add_class(self, cls: Class):
         if not isinstance(cls, Class):
             raise Exception('can only add Class objects')
         self.classes.add(cls)
-    
-    def get_modifier(self, skill_or_attribute: str):
+
+    def get_class_level(self, cls: str) -> int:
+        cls = self.classes.get(cls, None)
+        return cls.level if cls is not None else 0
+
+    def get_modifier(self, skill_or_attribute: str, saving_throw=False):
         skill_or_attribute = skill_or_attribute.lower()
         if (skill := getattr(self, skill_or_attribute, None)) is not None:
             return (skill - 10) // 2
@@ -79,7 +84,12 @@ class Character():
         attr = SKILL.get(skill_or_attribute)
         base_mod = (getattr(self, attr) - 10) // 2
         
-        prof_mod = 0 if skill_or_attribute not in self.proficiencies else self.proficiency
+        prof_mod = 0
+        if skill_or_attribute in self.proficiencies:
+            if saving_throw or skill_or_attribute in SKILL: 
+                prof_mod = self.proficiency
+        elif self.get_class_level('bard') >= 2:
+            prof_mod = self.proficiency // 2
         
         return base_mod + prof_mod
 
@@ -125,7 +135,4 @@ class Rolodex():
             return Rolodex(**data)
         else:
             return Rolodex()
-
-def write_to_file(filename, data):
-    print('in func')
 

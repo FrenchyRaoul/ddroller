@@ -2,9 +2,12 @@ import asyncio
 import re
 import discord
 from random import randint
+from typing import List, Union
 
 from disc_info import TOKEN, GUILD, OWNER
 from character import Character, Rolodex, SKILL, ATTR
+
+ROLL_REGEX = re.compile(r'(?P<n>\d+)?d?(?P<d>\d+)\+?(?P<mod>\d+)?')
 
 
 class DDClient(discord.Client):
@@ -28,7 +31,7 @@ class DDClient(discord.Client):
         if message.author == client.user:
             return
 
-        if message.content[0] != '!':
+        if message.content in (None, '') or message.content[0] != '!':
             return
 
         cmd, *args = message.content.split()
@@ -39,25 +42,23 @@ class DDClient(discord.Client):
                 await message.channel.send(f"1d20:  **{roll()[0]}**")
             elif args[0] in ('adv', 'dis'):
                 if args[0] == 'adv':
-                    await message.channel.send(roll_d20_adv)
+                    await message.channel.send(roll_d20_adv())
                 else: 
-                    await message.channel.send(roll_d20_dis)
+                    await message.channel.send(roll_d20_dis())
             else:
-                if 'd' in args[0]:
-                    n, d = args[0].split('d')
-                else:
-                    n = 1
-                    d = args[0]
-                n = int(n)
-                d = int(d)
-                if n > 15:
-                    await message.channel.send("How about you don't roll so many dice")
-                    return
-                if d > 10e10:
-                    await message.channel.send("Too many sides, this die just rolls around")
-                    return
-                rolls = roll(d, n)
-                await message.channel.send(f'{n}d{d}:   **{sum(rolls)}**   *({", ".join(str(val) for val in rolls)})*')
+                match = ROLL_REGEX.match(args[0])
+                if match:
+                    n = int(match['n']) if match['n'] else 1
+                    d = int(match['d'])
+                    mod = int(match['mod']) if match['mod'] else 0
+                    if n > 15:
+                        await message.channel.send("How about you don't roll so many dice")
+                        return
+                    if d > 10e10:
+                        await message.channel.send("Too many sides, this die just rolls around")
+                        return
+                    total, vals = roll(d, n, mod=mod)
+                    await message.channel.send(format_rolls(d, n, vals, [mod], total))
 
         elif cmd == '!character':
             if len(args) == 0:
@@ -87,9 +88,22 @@ class DDClient(discord.Client):
                         await message.channel.send(roll()[0])
 
                     elif args[1].lower() in SKILL or args[1].lower() in ATTR:
+                        adv_dis = ''
+                        func = roll
+                        save = False
+                        for var in args[2:]:
+                            if var == 'adv':
+                                func = roll_d20_adv
+                                adv_dis = ' with advantage'
+                            elif var == 'dis':
+                                func = roll_d20_dis
+                                adv_dis = ' with disadvantage'
+                            elif var == 'save':
+                                save = True
+
                         mod = character.get_modifier(args[1])
-                        total = roll()[0] + mod
-                        await message.channel.send(f'**{total}**  *{charname.title()} rolled {args[1].lower()}.*')
+                        total, vals = roll(mod=mod)
+                        await message.channel.send(f'**{total}**  *{charname.title()} rolled a {args[1].lower()} {"save" if save else "check"}{adv_dis}.*')
 
                 elif args[0] == 'update':
                     
@@ -110,6 +124,19 @@ class DDClient(discord.Client):
                             except ValueError:
                                 await message.channel.send("Attribute value must be an integer")
 
+                    elif args[1] == 'proficiency':
+                        if len(args) == 2:
+                            await message.channel.send(f'What skill should be added/removed from the proficiency list?')
+                        elif (skill := args[2].lower()) in SKILL:
+                            if skill in character.proficiencies:
+                                character.proficiencies.remove(skill)
+                                await message.channel.send(f"{skill} removed from proficiency list.")
+                            else:
+                                character.add_proficiency(skill)
+                                await message.channel.send(f"{skill} added to proficiency list")
+                        else:
+                            await message.channel.send(f'{args[2]} is not a skill, is there a typo')
+
 
 
             except PermissionError:
@@ -119,19 +146,23 @@ class DDClient(discord.Client):
             await message.channel.send("There is no command or character by this name")
 
 
-def roll(d=20, n=1):
+def roll(d=20, n=1, agg=sum, mod=0):
     d = int(d)
     n = int(n)
     results = [randint(1, d) for die in range(n)]
-    return results
+    return agg(results)+mod, results
 
-def roll_d20_adv():
-    rolls = roll(n=2)
-    return f"2d20+Adv:   **{max(rolls)}**   *({rolls[0]}, {rolls[1]})*"
+def roll_d20_adv(mod=0):
+    total, rolls = roll(n=2, mod=mod, agg=max)
+    return format_rolls(d=20, n=2, total=total, vals=rolls, mods=['adv', mod])
 
-def roll_d20_dis():
-    rolls = roll(n=2)
-    return f"2d20+Dis:   **{min(rolls)}**   *({rolls[0]}, {rolls[1]})*"
+def roll_d20_dis(mod=0):
+    total, rolls = roll(n=2, mod=mod, agg=min)
+    return format_rolls(d=20, n=2, total=total, vals=rolls, mods=['dis', mod])
+
+def format_rolls(d: int, n: int, vals: List[int], mods=List[Union[str, int]], total=None):
+    modstr = ''.join(f'+{str(mod)}' for mod in mods if mod not in (0, '0'))
+    return f"{n}d{d}{modstr}:  **{total}**  *({', '.join(map(str, vals))})*"
     
 
 

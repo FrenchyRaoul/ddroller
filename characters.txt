@@ -1,1 +1,5 @@
-{'owners': {'thoros': ['FrenchyRaoul', 'Reconstruct']}, 'characters': {'thoros': Character(name='Thoros', race='Human', strength=9, dexterity=12, constitution=16, intelligence=20, wisdom=10, charisma=9, proficiencies={'nature', 'religion', 'arcana', 'history'}, skill_modifiers={}, classes={Class(name='wizard', level=5)})}}
+{'owners': {'thoros': ['FrenchyRaoul', 'Reconstruct']}, 'characters':
+{'thoros': Character(name='Thoros', race='Human', strength=9, dexterity=12,
+constitution=16, intelligence=20, wisdom=10, charisma=9,
+proficiencies={'nature', 'religion', 'history', 'arcana'}, skill_modifiers={},
+classes={'wizard': Class(name='wizard', level=5)})}}
