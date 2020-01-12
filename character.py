@@ -2,7 +2,14 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import Set, Dict, Tuple, Union, List
 from dataclasses import dataclass, field, asdict
 
-ATTR = {"strength", "dexterity", "intelligence", "wisdom", "charisma", "constitution"}
+ATTR = {"str": "strength", 
+        "dex": "dexterity", 
+        "int": "intelligence", 
+        "wis": "wisdom", 
+        "cha": "charisma", 
+        "con": "constitution"}
+
+ATTR_FLAT = tuple(list(ATTR.keys()) + list(ATTR.values()))
 
 SKILL = {"athletics": "strength",
          "acrobatics": "dexterity",
@@ -14,7 +21,7 @@ SKILL = {"athletics": "strength",
          "nature": "intelligence",
          "religion": "intelligence",
          "animal_handling": "wisdom",
-         "insignt": "wisdom",
+         "insight": "wisdom",
          "medicine": "wisdom",
          "perception": "wisdom",
          "survival": "wisdom",
@@ -23,6 +30,8 @@ SKILL = {"athletics": "strength",
          "performance": "charisma",
          "persuasion": "charisma"
         }    
+
+FULL_SKILLLIST = tuple(list(SKILL.keys()) + list(ATTR_FLAT))
 
 @dataclass
 class Class():
@@ -51,6 +60,13 @@ class Character():
         if isinstance(other, Character):
             return (self.name == other.name)
         return False
+
+    def __str__(self):
+        classstr = ", ".join(f"Level {cls.level} {cls.name.title()}" for cls in self.classes.values())
+        namestr = f'**{self.name.title()}**: {self.race.title()} *({classstr})*'
+        attrs = "\n".join(f"{attr.title()}: {getattr(self, attr)}" for attr in ATTR.values())
+        profs = f"**Proficiencies**: {', '.join(map(str.title, self.proficiencies))}"
+        return f"{namestr}\n{attrs}\n{profs}"
         
     @property
     def level(self):
@@ -63,26 +79,27 @@ class Character():
     
     def add_proficiency(self, skill_or_attr: str):
         skill_or_attr = skill_or_attr.lower()
-        if skill not in SKILL and skill not in ATTR:
+        if skill_or_attr not in SKILL and skill_or_attr not in ATTR_FLAT:
             raise ValueError('invalid skill name')
-        self.proficiencies.add(skill)
+        self.proficiencies.add(ATTR.get(skill_or_attr, skill_or_attr))
         
-    def add_class(self, cls: Class):
-        if not isinstance(cls, Class):
-            raise Exception('can only add Class objects')
-        self.classes.add(cls)
+    def update_class(self, classname: str, classlevel: int):
+        classname = classname.lower()
+        cls = self.classes.get(classname, Class(classname, classlevel))
+        cls.level = classlevel
+        self.classes[classname] = cls
 
     def get_class_level(self, cls: str) -> int:
         cls = self.classes.get(cls, None)
         return cls.level if cls is not None else 0
 
-    def get_modifier(self, skill_or_attribute: str, saving_throw=False):
-        skill_or_attribute = skill_or_attribute.lower()
+    def get_skill_modifiers(self, skill_or_attribute: str, saving_throw=False):
+        skill_or_attribute = ATTR.get(skill_or_attribute, skill_or_attribute)
         if (skill := getattr(self, skill_or_attribute, None)) is not None:
-            return (skill - 10) // 2
-        
-        attr = SKILL.get(skill_or_attribute)
-        base_mod = (getattr(self, attr) - 10) // 2
+            base_mod = (skill - 10) // 2
+        else:
+            attr = SKILL.get(skill_or_attribute)
+            base_mod = (getattr(self, attr) - 10) // 2
         
         prof_mod = 0
         if skill_or_attribute in self.proficiencies:
@@ -90,8 +107,26 @@ class Character():
                 prof_mod = self.proficiency
         elif self.get_class_level('bard') >= 2:
             prof_mod = self.proficiency // 2
-        
-        return base_mod + prof_mod
+
+        other_mod = self.skill_modifiers.get(skill_or_attribute, ('', lambda char: 0))
+
+        return (base_mod, prof_mod, other_mod)
+
+    def get_modifier(self, skill_or_attribute: str, saving_throw=False):
+        base_mod, prof_mod, other_mod_tup = self.get_skill_modifiers(skill_or_attribute, saving_throw)
+        other_mod = other_mod_tup[1](self)
+        return base_mod + prof_mod + other_mod
+
+    def explain_modifier(self, skill_or_attribute: str, saving_throw=False):
+        base_mod, prof_mod, other_mod = self.get_skill_modifiers(skill_or_attribute, saving_throw)
+        total = self.get_modifier(skill_or_attribute, saving_throw)
+        return f'{self.name.title()} {skill_or_attribute.title()}: **{total}**  *(Base Mod={base_mod}, Prof Mod: {prof_mod}, {other_mod[0].title() or "Other"}: {other_mod[1](self)})*'
+
+    def create_skill_modifier(self, skill_or_attribute: str, name: str = None, modifier: int = 0, add_prof: bool = False):
+        if skill_or_attribute not in FULL_SKILLLIST:
+            raise AttributeError('invalid skill name')
+        skillmod = SkillModifier(modifier, add_prof)
+        self.skill_modifiers[skill_or_attribute] = (name or '', skillmod)
 
 Owner = str
 CharacterName = str
@@ -136,3 +171,12 @@ class Rolodex():
         else:
             return Rolodex()
 
+
+@dataclass
+class SkillModifier(object):
+    modifier: int
+    add_proficiency: bool
+
+    def __call__(self, char: Character):
+        prof = char.proficiency
+        return self.modifier + (prof if self.add_proficiency else 0)
