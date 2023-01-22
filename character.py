@@ -33,6 +33,7 @@ SKILL = {"athletics": "strength",
 
 FULL_SKILLLIST = tuple(list(SKILL.keys()) + list(ATTR_FLAT))
 
+
 @dataclass
 class Class():
     name: str
@@ -41,6 +42,7 @@ class Class():
     # disallows duplicate classes in a set
     def __hash__(self):
         return hash(self.name)
+
 
 @dataclass
 class Character():
@@ -128,11 +130,13 @@ class Character():
         skillmod = SkillModifier(modifier, add_prof)
         self.skill_modifiers[skill_or_attribute] = (name or '', skillmod)
 
+
 Owner = str
 CharacterName = str
 
+
 @dataclass
-class Rolodex():
+class Rolodex:
     owners: Dict[CharacterName, Set[Owner]] = field(default_factory=dict)
     characters: Dict[CharacterName, Character] = field(default_factory=dict)
 

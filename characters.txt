@@ -1,1 +1,17 @@
-{'owners': {'thoros': ['210926485035286538', '358321969701191693'], 'dolfur': ['210926485035286538', '358321969701191693'], 'vicben': ['210926485035286538', '358321969701191693', '231559895915298819']}, 'characters': {'thoros': Character(name='Thoros', race='Human', strength=9, dexterity=8, constitution=16, intelligence=20, wisdom=10, charisma=9, proficiencies={'religion', 'arcana', 'nature', 'history'}, skill_modifiers={}, classes={'wizard': Class(name='wizard', level=5)}), 'dolfur': Character(name='dolfur', race='dwarf', strength=18, dexterity='14', constitution='12', intelligence='16', wisdom='14', charisma='16', proficiencies=set(), skill_modifiers={}, classes={'fighter': Class(name='fighter', level=4)}), 'vicben': Character(name='vicben', race='human', strength=10, dexterity=15, constitution=13, intelligence=11, wisdom=13, charisma=18, proficiencies={'persuasion', 'insight', 'deception', 'stealth', 'performance'}, skill_modifiers={'stealth': ('expertise', SkillModifier(modifier=0, add_proficiency=True)), 'performance': ('expertise', SkillModifier(modifier=0, add_proficiency=True))}, classes={'bard': Class(name='bard', level=4), 'warlock': Class(name='warlock', level=1)})}}
+{'owners': {'thoros': ['210926485035286538', '358321969701191693'],
+            'dolfur': ['210926485035286538', '358321969701191693'],
+            'vicben': ['210926485035286538', '358321969701191693', '231559895915298819']},
+
+'characters': {'thoros': Character(name='Thoros', race='Human', strength=9, dexterity=8, constitution=16, intelligence=20, wisdom=10, charisma=9,
+proficiencies={'religion', 'arcana', 'nature', 'history'}, skill_modifiers={},
+classes={'wizard': Class(name='wizard', level=5)}),
+
+'dolfur': Character(name='dolfur', race='dwarf', strength=18, dexterity='14', constitution='12', intelligence='16', wisdom='14', charisma='16',
+proficiencies=set(), skill_modifiers={},
+classes={'fighter': Class(name='fighter', level=4)}),
+
+'vicben': Character(name='vicben', race='human', strength=10, dexterity=15, constitution=13, intelligence=11, wisdom=13, charisma=18,
+proficiencies={'persuasion', 'insight', 'deception', 'stealth', 'performance'},
+skill_modifiers={'stealth': ('expertise', SkillModifier(modifier=0, add_proficiency=True)),
+'performance': ('expertise', SkillModifier(modifier=0, add_proficiency=True))},
+classes={'bard': Class(name='bard', level=4), 'warlock': Class(name='warlock', level=1)})}}

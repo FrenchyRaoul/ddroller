@@ -12,18 +12,20 @@ ROLL_REGEX = re.compile(r'(?P<n>\d+)?d?(?P<d>\d+)\+?(?P<mod>\d+)?')
 ADVANTAGE = ('adv', 'advantage')
 DISADVANTAGE = ('dis', 'disadv', 'disadvantage')
 
+
 class DDClient(discord.Client):
 
     def __init__(self):
         super().__init__()
+        self.user_ids = None
         self.rd = None
 
     async def on_ready(self):
-        if len(client.guilds) != 1:
+        if len(self.guilds) != 1:
             raise Exception('not connected to 1 guild')
-        assert str(client.guilds[0]) == GUILD
+        assert str(self.guilds[0]) == GUILD
     
-        print(f'{client.user} has connected to Discord')
+        print(f'{self.user} has connected to Discord')
         print(f'Connected to {client.guilds[0]}')
 
         self.rd = Rolodex.load()
@@ -31,65 +33,34 @@ class DDClient(discord.Client):
 
         try:
             with open('usersids.p', 'rb') as fin:
-                self.userids = pickle.load(fin)
+                self.user_ids = pickle.load(fin)
         except:
-            self.userids = dict()
+            self.user_ids = dict()
 
     async def on_message(self, message):
 
-        if (uid := message.author.id) not in self.userids:
-            self.userids[uid] = set()
-        if (name := message.author.name) not in (nameset := self.userids[message.author.id]):
+        if (uid := message.author.id) not in self.user_ids:
+            self.user_ids[uid] = set()
+        if (name := message.author.name) not in (nameset := self.user_ids[message.author.id]):
             nameset.add(name)
             with open('userids.p', 'wb') as fout:
-                pickle.dump(self.userids, fout)
-            
+                pickle.dump(self.user_ids, fout)
 
-        if message.author == client.user:
+        if message.author == self.user:
             return
 
         if message.content in (None, '') or message.content[0] != '!':
             return
 
-
         cmd, *args = message.content.lower().split()
 
-
         if cmd == '!roll':
-            if len(args) == 0:
-                await message.channel.send(f"1d20:  **{roll()[0]}**")
-            elif args[0] in ADVANTAGE:
-                await message.channel.send(roll_d20_adv())
-            elif args[0] in DISADVANTAGE:
-                await message.channel.send(roll_d20_dis())
-            else:
-                match = ROLL_REGEX.match(args[0])
-                if match:
-                    n = int(match['n']) if match['n'] else 1
-                    d = int(match['d'])
-                    mod = int(match['mod']) if match['mod'] else 0
-                    if n > 15:
-                        await message.channel.send("How about you don't roll so many dice")
-                        return
-                    if d > 10e10:
-                        await message.channel.send("Too many sides, this die just rolls around")
-                        return
-                    total, vals = roll(d, n, mod=mod)
-                    await message.channel.send(format_rolls(d, n, vals, [mod], total))
-                else:
-                    await message.channel.send("I do not understand this roll command")
+            await message.channel.send(self.bot_roll(args))
+            return
 
         elif cmd == '!character':
-            if len(args) == 0:
-                await message.channel.send(f'You must provide arguments: new update')
-                return
-            if args[0] == 'new':
-                try:
-                    newchar = Character(args[1], args[2], *map(int, args[3:]))
-                    self.rd.add_character([str(message.author.id), OWNER], newchar)
-                    self.rd.store()
-                except Exception as e:
-                    await message.channel.send(f'failed to create characted: {e}')
+            await message.channel.send(self.bot_character(args, message))
+            return
 
         elif cmd == '!list':
             await message.channel.send(f'{", ".join(self.rd.characters)}')
@@ -101,39 +72,19 @@ class DDClient(discord.Client):
                 if len(args) == 0:
                     await message.channel.send(str(character))
                 elif args[0] == 'roll':
-                    
-                    if len(args) == 1:
-                        await message.channel.send(roll()[0])
-
-                    elif args[1] in list(SKILL.keys()) + list(ATTR_FLAT):
-                        adv_dis = ''
-                        func = roll
-                        save = False
-                        for var in args[2:]:
-                            if var in ADVANTAGE:
-                                func = roll_d20_adv
-                                adv_dis = ' with advantage'
-                            elif var in DISADVANTAGE:
-                                func = roll_d20_dis
-                                adv_dis = ' with disadvantage'
-                            elif var == 'save':
-                                save = True
-
-                        mod = character.get_modifier(args[1])
-                        total, vals = roll(mod=mod)
-                        await message.channel.send(f'**{total}**  *{charname.title()} rolled a {args[1].lower()} {"save" if save else "check"}{adv_dis}.*')
+                    await message.channel.send(self.character_roll(charname, character, args))
 
                 elif args[0] in FULL_SKILLLIST:
                     await message.channel.send(character.explain_modifier(args[0]))
 
                 elif args[0] == 'update':
-                    
+
                     if len(args) == 1:
                         await message.channel.send(f'What am I supposed to update?')
 
                     elif args[1] in ATTR_FLAT:
                         if len(args) == 2:
-                            await message.channel.send(f"What should I update {attr[1]} to?")
+                            await message.channel.send(f"What should I update {args[1]} to?")
                         else:
                             try:
                                 newval = int(args[2])
@@ -184,12 +135,86 @@ class DDClient(discord.Client):
                                 character.create_skill_modifier(skill, name=name, modifier=int(args[4]))
                             self.rd.store()
 
-
             except PermissionError:
                 await message.channel.send(f'You do not have permission to use {charname.title()}')
 
         else:
             await message.channel.send("There is no command or character by this name")
+
+    def bot_roll(self, args) -> str:
+        if len(args) == 0:
+            return f"1d20:  **{roll()[0]}**"
+        elif args[0] in ADVANTAGE:
+            return roll_d20_adv()
+        elif args[0] in DISADVANTAGE:
+            return roll_d20_dis()
+        else:
+            match = ROLL_REGEX.match(args[0])
+            if match:
+                n = int(match['n']) if match['n'] else 1
+                d = int(match['d'])
+                mod = int(match['mod']) if match['mod'] else 0
+                if n > 15:
+                    return "How about you don't roll so many dice"
+                if d > 10e10:
+                    return "Too many sides, this die just rolls around"
+
+                total, vals = roll(d, n, mod=mod)
+                return format_rolls(d, n, vals, [mod], total)
+            else:
+                return "I do not understand this roll command"
+
+    def bot_character(self, args, message) -> str:
+        if len(args) == 0:
+            return f'You must provide arguments: new update'
+        if args[0] == 'new':
+            try:
+                newchar = Character(args[1], args[2], *map(int, args[3:]))
+                self.rd.add_character([str(message.author.id), OWNER], newchar)
+                self.rd.store()
+            except Exception as e:
+                return f'failed to create character: {e}'
+
+    def character_roll(self, charname, character, args) -> str:
+        if len(args) == 1:
+            return str(roll()[0])
+
+        elif args[1] in list(SKILL.keys()) + list(ATTR_FLAT):
+            adv_dis = ''
+            func = roll
+            save = False
+            for var in args[2:]:
+                if var in ADVANTAGE:
+                    func = roll_d20_adv
+                    adv_dis = ' with advantage'
+                elif var in DISADVANTAGE:
+                    func = roll_d20_dis
+                    adv_dis = ' with disadvantage'
+                elif var == 'save':
+                    save = True
+
+            mod = character.get_modifier(args[1])
+            total, vals = func(mod=mod)
+            return f'**{total}**  *{charname.title()} rolled a {args[1].lower()} {"save" if save else "check"}{adv_dis}.*'
+
+    def character_update(self, charname, character, args) -> str:
+        if len(args) == 1:
+            return f'What am I supposed to update?'
+
+        elif args[1] in ATTR_FLAT:
+            if len(args) == 2:
+                return f"What should I update {args[1]} to?"
+            else:
+                try:
+                    newval = int(args[2])
+                    if 0 > newval > 20:
+                        return "Attribute must be between 0 and 20, inclusive."
+                    attr = ATTR.get(args[1], args[1])  # convert str to strength, int to intelligence, etc
+                    setattr(character, attr, newval)
+                    self.rd.store()
+                    return f"Updated {charname.title()}'s {attr.title()} to {newval}"
+                except ValueError:
+                    return "Attribute value must be an integer"
 
 
 def roll(d=20, n=1, agg=sum, mod=0):
