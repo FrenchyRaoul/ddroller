@@ -78,62 +78,7 @@ class DDClient(discord.Client):
                     await message.channel.send(character.explain_modifier(args[0]))
 
                 elif args[0] == 'update':
-
-                    if len(args) == 1:
-                        await message.channel.send(f'What am I supposed to update?')
-
-                    elif args[1] in ATTR_FLAT:
-                        if len(args) == 2:
-                            await message.channel.send(f"What should I update {args[1]} to?")
-                        else:
-                            try:
-                                newval = int(args[2])
-                                if 0 > newval > 20:
-                                    await message.channel.send("Attribute must be between 0 and 20, inclusive.")
-                                attr = ATTR.get(args[1], args[1])  # convert str to strength, int to intelligence, etc
-                                setattr(character, attr, newval)
-                                self.rd.store()
-                                await message.channel.send(f"Updated {charname.title()}'s {attr.title()} to {newval}")
-                            except ValueError:
-                                await message.channel.send("Attribute value must be an integer")
-
-                    elif args[1] == 'proficiency':
-                        if len(args) == 2:
-                            await message.channel.send(f'What skill should be added/removed from the proficiency list?')
-                        elif (skill := args[2].lower()) in SKILL or args[2].lower() in ATTR_FLAT:
-                            if skill in character.proficiencies:
-                                character.proficiencies.remove(skill)
-                                await message.channel.send(f"{skill} removed from proficiency list.")
-                                self.rd.store()
-                            else:
-                                character.add_proficiency(skill)
-                                await message.channel.send(f"{skill} added to proficiency list")
-                                self.rd.store()
-                        else:
-                            await message.channel.send(f'{args[2]} is not a skill, is there a typo')
-                    elif args[1] == 'class':
-                        if len(args) == 2:
-                            await message.channel.send(f'What class do you want me to update?')
-                        elif len(args) == 3:
-                            await message.channel.send(f'You must provide a level (0 to delete)')
-                        else:
-                            print('here')
-                            character.update_class(args[2], int(args[3]))
-                            self.rd.store()
-
-                    elif args[1] == 'skillmod':
-                        if len(args) == 2:
-                            await message.channel.send(f'what skill do you want to modify?')
-                        if len(args) < 5:
-                            await message.channel.send(f'Skill Mod format: !char update skillmod <modname> <skillname> <integer or "prof">')
-                        else:
-                            name = args[2]
-                            skill = args[3]
-                            if args[4] == 'prof':
-                                character.create_skill_modifier(skill, name=name, add_prof=True)
-                            else:
-                                character.create_skill_modifier(skill, name=name, modifier=int(args[4]))
-                            self.rd.store()
+                    await message.channel.send(self.update_character(args, charname, character))
 
             except PermissionError:
                 await message.channel.send(f'You do not have permission to use {charname.title()}')
@@ -197,24 +142,76 @@ class DDClient(discord.Client):
             total, vals = func(mod=mod)
             return f'**{total}**  *{charname.title()} rolled a {args[1].lower()} {"save" if save else "check"}{adv_dis}.*'
 
-    def character_update(self, charname, character, args) -> str:
+    def update_attribute(self, charname, character, args) -> str:
+        if len(args) == 2:
+            return f"What should I update {args[1]} to?"
+        else:
+            try:
+                newval = int(args[2])
+            except ValueError:
+                return "Attribute value must be an integer"
+            if 0 > newval > 20:
+                return "Attribute must be between 0 and 20, inclusive."
+            attr = ATTR.get(args[1], args[1])  # convert str to strength, int to intelligence, etc
+            setattr(character, attr, newval)
+            self.rd.store()
+            return f"Updated {charname.title()}'s {attr.title()} to {newval}"
+
+    def update_proficiency(self, args, character) -> str:
+        if len(args) == 2:
+            return f'What skill should be added/removed from the proficiency list?'
+        elif (skill := args[2].lower()) in SKILL or args[2].lower() in ATTR_FLAT:
+            if skill in character.proficiencies:
+                character.proficiencies.remove(skill)
+                self.rd.store()
+                return f"{skill} removed from proficiency list."
+            else:
+                character.add_proficiency(skill)
+                self.rd.store()
+                return f"{skill} added to proficiency list"
+        else:
+            return f'{args[2]} is not a skill, is there a typo'
+
+    def update_class(self, args, character) -> str:
+        if len(args) == 2:
+            return f'What class do you want me to update?'
+        elif len(args) == 3:
+            return f'You must provide a level (0 to delete)'
+        else:
+            character.update_class(args[2], int(args[3]))
+            self.rd.store()
+            return f"I successfully updated {character.name}'s class to {args[2]} {int(args[3])}"
+
+    def update_skill_mod(self, args, character):
+        if len(args) == 2:
+            return f'what skill do you want to modify?'
+        if len(args) < 5:
+            return f'Skill Mod format: !char update skillmod <modname> <skillname> <integer or "prof">'
+        else:
+            name = args[2]
+            skill = args[3]
+            if args[4] == 'prof':
+                character.create_skill_modifier(skill, name=name, add_prof=True)
+            else:
+                character.create_skill_modifier(skill, name=name, modifier=int(args[4]))
+            self.rd.store()
+            return "UPDATE ME LATER BUT I UPDATED THE MOD"
+
+    def update_character(self, args, charname, character) -> str:
         if len(args) == 1:
             return f'What am I supposed to update?'
 
         elif args[1] in ATTR_FLAT:
-            if len(args) == 2:
-                return f"What should I update {args[1]} to?"
-            else:
-                try:
-                    newval = int(args[2])
-                    if 0 > newval > 20:
-                        return "Attribute must be between 0 and 20, inclusive."
-                    attr = ATTR.get(args[1], args[1])  # convert str to strength, int to intelligence, etc
-                    setattr(character, attr, newval)
-                    self.rd.store()
-                    return f"Updated {charname.title()}'s {attr.title()} to {newval}"
-                except ValueError:
-                    return "Attribute value must be an integer"
+            return self.update_attribute(charname, character, args)
+
+        elif args[1] == 'proficiency':
+            return self.update_proficiency(args, character)
+
+        elif args[1] == 'class':
+            return self.update_class(args, character)
+
+        elif args[1] == 'skillmod':
+            return self.update_skill_mod(args, character)
 
 
 def roll(d=20, n=1, agg=sum, mod=0):

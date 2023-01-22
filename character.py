@@ -45,7 +45,7 @@ class Class():
 
 
 @dataclass
-class Character():
+class Character:
     name: str
     race: str
     strength: int
