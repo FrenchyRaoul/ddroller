@@ -5,8 +5,8 @@ from random import randint
 from typing import List, Union
 import pickle
 
-from disc_info import TOKEN, GUILD, OWNER
-from character import Character, Rolodex, SKILL, ATTR, ATTR_FLAT, FULL_SKILLLIST
+from .disc_info import TOKEN, GUILD, OWNER
+from .character import Character, Rolodex, SKILL, ATTR, ATTR_FLAT, FULL_SKILLLIST
 
 ROLL_REGEX = re.compile(r'(?P<n>\d+)?d?(?P<d>\d+)\+?(?P<mod>\d+)?')
 ADVANTAGE = ('adv', 'advantage')
@@ -16,7 +16,7 @@ DISADVANTAGE = ('dis', 'disadv', 'disadvantage')
 class DDClient(discord.Client):
 
     def __init__(self):
-        super().__init__()
+        super().__init__(intents=discord.Intents.default())
         self.user_ids = None
         self.rd = None
 
@@ -220,19 +220,22 @@ def roll(d=20, n=1, agg=sum, mod=0):
     results = [randint(1, d) for die in range(n)]
     return agg(results)+mod, results
 
+
 def roll_d20_adv(mod=0):
     total, rolls = roll(n=2, mod=mod, agg=max)
     return format_rolls(d=20, n=2, total=total, vals=rolls, mods=['adv', mod])
 
+
 def roll_d20_dis(mod=0):
     total, rolls = roll(n=2, mod=mod, agg=min)
     return format_rolls(d=20, n=2, total=total, vals=rolls, mods=['dis', mod])
+
 
 def format_rolls(d: int, n: int, vals: List[int], mods=List[Union[str, int]], total=None):
     modstr = ''.join(f'+{str(mod)}' for mod in mods if mod not in (0, '0'))
     return f"{n}d{d}{modstr}:  **{total}**  *({', '.join(map(str, vals))})*"
     
 
-
-client = DDClient()
-client.run(TOKEN)
+if __name__ == "__main__":
+    client = DDClient()
+    client.run(TOKEN)
